@@ -1,3 +1,8 @@
+## Unreleased
+
+- Keep source audio by default on iOS and macOS, and verify the output audio
+  track before accepting a compressed file.
+
 ## 0.1.0
 
 - Initial Android Media3 and iOS/macOS AVFoundation video compression support.

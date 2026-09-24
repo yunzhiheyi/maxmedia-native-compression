@@ -77,6 +77,55 @@ void main() {
     expect(result.actualSettings['resizePolicy'], 'original');
   });
 
+  testWidgets('Apple standard video compression keeps source audio', (
+    tester,
+  ) async {
+    if (!Platform.isIOS && !Platform.isMacOS) return;
+    final input = '${temporaryDirectory.path}/with-audio.mp4';
+    final output = '${temporaryDirectory.path}/with-audio-output.mp4';
+    await _copyAsset('integration_test/assets/video-with-audio.mp4', input);
+
+    final result = await const MaxmediaVideoNative().compress(
+      VideoCompressionRequest(
+        inputPath: input,
+        outputPath: output,
+        codec: VideoCodec.h264,
+        container: ContainerFormat.mp4,
+        averageBitrate: 2_000_000,
+        maxShortSide: 720,
+      ),
+    );
+    expect(result.terminal, CompressionTerminal.succeeded);
+    expect(result.actualSettings['audioPreserved'], isTrue);
+    expect(result.actualSettings['audioRemoved'], isFalse);
+    expect(await File(output).length(), lessThan(await File(input).length()));
+  });
+
+  testWidgets('Apple SDR video retains Display P3 color tags', (tester) async {
+    if (!Platform.isIOS && !Platform.isMacOS) return;
+    final input = '${temporaryDirectory.path}/p3-sdr.mp4';
+    final output = '${temporaryDirectory.path}/p3-sdr-output.mp4';
+    await _copyAsset('integration_test/assets/video-p3-sdr.mp4', input);
+
+    final result = await const MaxmediaVideoNative().compress(
+      VideoCompressionRequest(
+        inputPath: input,
+        outputPath: output,
+        codec: VideoCodec.h264,
+        container: ContainerFormat.mp4,
+        averageBitrate: 180_000,
+      ),
+    );
+    expect(result.terminal, CompressionTerminal.succeeded);
+    final source = result.actualSettings['input'] as Map;
+    final encoded = result.actualSettings['output'] as Map;
+    expect(source['colorPrimaries'].toString().toUpperCase(), contains('P3'));
+    for (final key in ['colorPrimaries', 'transferFunction', 'yCbCrMatrix']) {
+      expect(encoded[key], source[key]);
+    }
+    expect(await File(output).length(), lessThan(await File(input).length()));
+  });
+
   testWidgets('social resize policy never enlarges a small image', (
     tester,
   ) async {
@@ -120,7 +169,7 @@ void main() {
     expect(await File(output).length(), greaterThan(0));
   });
 
-  testWidgets('wide-gamut WebP keeps its profile or its original file', (
+  testWidgets('wide-gamut WebP carries its source ICC profile', (
     tester,
   ) async {
     final input = '${temporaryDirectory.path}/display-p3.png';
@@ -134,23 +183,12 @@ void main() {
       format: ImageFormat.webp,
       quality: 0.8,
     );
-    if (Platform.isAndroid) {
-      final result = await const MaxmediaImageNative().compress(request);
-      expect(result.terminal, CompressionTerminal.succeeded);
-      final outputBytes = await File(output).readAsBytes();
-      expect(String.fromCharCodes(outputBytes).contains('ICCP'), isTrue);
-    } else {
-      await expectLater(
-        const MaxmediaImageNative().compress(request),
-        throwsA(
-          isA<PlatformException>().having(
-            (error) => error.code,
-            'code',
-            'IMAGE_COLOR_PRESERVATION',
-          ),
-        ),
-      );
-      expect(await File(output).exists(), isFalse);
+    final result = await const MaxmediaImageNative().compress(request);
+    expect(result.terminal, CompressionTerminal.succeeded);
+    final outputBytes = await File(output).readAsBytes();
+    expect(String.fromCharCodes(outputBytes).contains('ICCP'), isTrue);
+    if (Platform.isIOS || Platform.isMacOS) {
+      expect(result.actualSettings['iccPreserved'], isTrue);
     }
     expect(await File(input).readAsBytes(), original);
   });

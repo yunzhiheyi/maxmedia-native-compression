@@ -281,12 +281,19 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('pick-image')));
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('image-advanced-options')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('image-resize-policy')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('保持原尺寸（高清档）').last);
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('compress-image')),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
 
-    expect(find.text('执行原尺寸压缩'), findsOneWidget);
+    expect(find.text('压缩图片'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('compress-image')));
     await tester.pumpAndSettle();
     expect(gateway.lastImageRequest?.resizePolicy, ImageResizePolicy.original);
@@ -317,6 +324,18 @@ void main() {
 
     expect(find.text('picked.mp4'), findsOneWidget);
     expect(find.text('视频准备：系统当前格式快速准备 · 0.05 s'), findsOneWidget);
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('video-advanced-options')),
+    );
+    await tester.tap(find.byKey(const ValueKey('video-advanced-options')));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('video-hdr-policy')),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.drag(find.byType(ListView).first, const Offset(0, -250));
+    await tester.pumpAndSettle();
     expect(find.text('HDR 输入策略'), findsOneWidget);
     expect(find.text('保留 HDR 原片（默认）'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('video-hdr-policy')));
@@ -350,6 +369,11 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('pick-video')));
     await tester.pumpAndSettle();
     await tester.ensureVisible(
+      find.byKey(const ValueKey('video-advanced-options')),
+    );
+    await tester.tap(find.byKey(const ValueKey('video-advanced-options')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(
       find.byKey(const ValueKey('video-bitrate-budget')),
     );
     await tester.pumpAndSettle();
@@ -364,7 +388,7 @@ void main() {
 
     expect(gateway.lastVideoRequest?.averageBitrate, 1500000);
     expect(gateway.lastVideoRequest?.maxShortSide, 720);
-    expect(gateway.lastVideoRequest?.removeAudio, isTrue);
+    expect(gateway.lastVideoRequest?.removeAudio, isFalse);
   });
 
   testWidgets('batch video offers explicit HDR handling before processing', (
@@ -384,6 +408,13 @@ void main() {
     await tester.pumpAndSettle();
 
     final selector = find.byKey(const ValueKey('batch-video-hdr-policy'));
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('batch-video-advanced-options')),
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('batch-video-advanced-options')),
+    );
+    await tester.pumpAndSettle();
     await tester.ensureVisible(selector);
     await tester.pumpAndSettle();
     expect(find.text('批量视频 HDR 处理'), findsOneWidget);

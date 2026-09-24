@@ -76,6 +76,8 @@ flutter:
     - integration_test/assets/image-display-p3.png
     - integration_test/assets/image-oriented.jpg
     - integration_test/assets/input.mp4
+    - integration_test/assets/video-with-audio.mp4
+    - integration_test/assets/video-p3-sdr.mp4
     - integration_test/assets/video-hdr-hlg.mp4
     - integration_test/assets/video-cancel.mp4
     - integration_test/assets/video-4x3.mp4

@@ -333,7 +333,10 @@ public class MaxmediaImageNativePlugin: NSObject, FlutterPlugin, FlutterStreamHa
       && !normalizedProfile.contains("gray")
       && !normalizedProfile.contains("grey")
       && !normalizedProfile.contains("devicergb")
-    if requiresProfile && format == "webp" {
+    let webPColorSpace = requiresProfile && format == "webp" ? image.colorSpace : nil
+    let webPICC = webPColorSpace?.copyICCData() as Data?
+    if requiresProfile && format == "webp"
+      && (webPColorSpace?.model != .rgb || webPICC?.isEmpty != false) {
       throw PluginError.colorProtected
     }
 
@@ -352,7 +355,9 @@ public class MaxmediaImageNativePlugin: NSObject, FlutterPlugin, FlutterStreamHa
       let supported = Set((CGImageDestinationCopyTypeIdentifiers() as? [String]) ?? [])
       guard supported.contains(destinationType!) else { throw PluginError.unsupportedFormat(format) }
     }
-    let webPPixels = format == "webp" ? try prepareWebPPixels(image) : nil
+    let webPPixels = format == "webp"
+      ? try prepareWebPPixels(image, colorSpace: webPColorSpace)
+      : nil
     var outputPrepared = false
     var outputAccepted = false
     defer {
@@ -369,7 +374,10 @@ public class MaxmediaImageNativePlugin: NSObject, FlutterPlugin, FlutterStreamHa
       outputPrepared = true
       try? FileManager.default.removeItem(at: outputURL)
       if let webPPixels {
-        try encodeWebP(webPPixels, quality: appliedQuality, outputURL: outputURL)
+        try encodeWebP(
+          webPPixels, quality: appliedQuality, outputURL: outputURL,
+          iccProfile: webPICC
+        )
         return
       }
       guard let destination = CGImageDestinationCreateWithURL(
@@ -443,7 +451,11 @@ public class MaxmediaImageNativePlugin: NSObject, FlutterPlugin, FlutterStreamHa
       try? FileManager.default.removeItem(at: outputURL)
       throw PluginError.noSizeReduction
     }
-    if requiresProfile {
+    if requiresProfile && format == "webp" {
+      guard let webPICC, webPICCMatches(outputURL: outputURL, expected: webPICC) else {
+        throw PluginError.colorProtected
+      }
+    } else if requiresProfile {
       guard let outputSource = CGImageSourceCreateWithURL(outputURL as CFURL, nil),
             let outputProperties = CGImageSourceCopyPropertiesAtIndex(outputSource, 0, nil) as? [CFString: Any],
             let outputProfile = (outputProperties[kCGImagePropertyProfileName] as? String)
@@ -460,7 +472,7 @@ public class MaxmediaImageNativePlugin: NSObject, FlutterPlugin, FlutterStreamHa
       }
     }
     if format == "webp" && preserveMetadata {
-      warnings.append("WebP metadata was not preserved by the libwebp route")
+      warnings.append("WebP EXIF/XMP metadata was not preserved; ICC was retained when required")
     }
     if scale < 1 && preserveMetadata && format != "webp" {
       warnings.append("Metadata preservation after resize is best-effort")
@@ -484,6 +496,7 @@ public class MaxmediaImageNativePlugin: NSObject, FlutterPlugin, FlutterStreamHa
       "width": finalWidth,
       "height": finalHeight,
       "metadataPreserved": preserveMetadata && format != "webp",
+      "iccPreserved": format == "webp" && webPICC != nil,
       "colorPolicy": colorPolicy,
       "orientationNormalized": normalizeOrientation,
       "resizePolicy": resizePolicy,
@@ -509,7 +522,10 @@ public class MaxmediaImageNativePlugin: NSObject, FlutterPlugin, FlutterStreamHa
     ]
   }
 
-  private func prepareWebPPixels(_ image: CGImage) throws -> WebPPixelBuffer {
+  private func prepareWebPPixels(
+    _ image: CGImage,
+    colorSpace: CGColorSpace?
+  ) throws -> WebPPixelBuffer {
     let width = image.width
     let height = image.height
     let bytesPerRow = width * 4
@@ -521,9 +537,9 @@ public class MaxmediaImageNativePlugin: NSObject, FlutterPlugin, FlutterStreamHa
       height: height,
       bitsPerComponent: 8,
       bytesPerRow: bytesPerRow,
-      // WebP simple encoding does not write ICC. Convert every source (gray,
-      // CMYK and wide gamut included) into the declared sRGB pixel space.
-      space: CGColorSpace(name: CGColorSpace.sRGB)!,
+      // Render wide-gamut RGB in its own space and attach that ICC to WebP.
+      // Other sources are explicitly converted into sRGB pixels.
+      space: colorSpace ?? CGColorSpace(name: CGColorSpace.sRGB)!,
       bitmapInfo: CGBitmapInfo.byteOrder32Big.rawValue |
         CGImageAlphaInfo.premultipliedLast.rawValue
     ) else {
@@ -569,7 +585,8 @@ public class MaxmediaImageNativePlugin: NSObject, FlutterPlugin, FlutterStreamHa
   private func encodeWebP(
     _ buffer: WebPPixelBuffer,
     quality: Double,
-    outputURL: URL
+    outputURL: URL,
+    iccProfile: Data?
   ) throws {
     var encodedBytes: UnsafeMutablePointer<UInt8>?
     let encodedSize = buffer.pixels.withUnsafeBytes { pixels in
@@ -584,8 +601,49 @@ public class MaxmediaImageNativePlugin: NSObject, FlutterPlugin, FlutterStreamHa
     }
     guard encodedSize > 0, let encodedBytes else { throw PluginError.destinationFailed }
     defer { WebPFree(encodedBytes) }
-    let encodedData = Data(bytes: encodedBytes, count: encodedSize)
-    try encodedData.write(to: outputURL, options: .atomic)
+    guard let iccProfile else {
+      try Data(bytes: encodedBytes, count: encodedSize)
+        .write(to: outputURL, options: .atomic)
+      return
+    }
+    var bitstream = WebPData(bytes: encodedBytes, size: encodedSize)
+    guard let mux = WebPMuxCreate(&bitstream, 1) else {
+      throw PluginError.destinationFailed
+    }
+    defer { WebPMuxDelete(mux) }
+    let chunkStatus = iccProfile.withUnsafeBytes { bytes in
+      var chunk = WebPData(
+        bytes: bytes.bindMemory(to: UInt8.self).baseAddress,
+        size: iccProfile.count
+      )
+      return WebPMuxSetChunk(mux, "ICCP", &chunk, 1)
+    }
+    guard chunkStatus == WEBP_MUX_OK else { throw PluginError.destinationFailed }
+    var assembled = WebPData()
+    guard WebPMuxAssemble(mux, &assembled) == WEBP_MUX_OK,
+          let assembledBytes = assembled.bytes else {
+      throw PluginError.destinationFailed
+    }
+    defer { WebPFree(UnsafeMutableRawPointer(mutating: assembledBytes)) }
+    try Data(bytes: assembledBytes, count: assembled.size)
+      .write(to: outputURL, options: .atomic)
+  }
+
+  private func webPICCMatches(outputURL: URL, expected: Data) -> Bool {
+    guard let encoded = try? Data(contentsOf: outputURL) else { return false }
+    return encoded.withUnsafeBytes { bytes in
+      var bitstream = WebPData(
+        bytes: bytes.bindMemory(to: UInt8.self).baseAddress,
+        size: encoded.count
+      )
+      guard let mux = WebPMuxCreate(&bitstream, 0) else { return false }
+      defer { WebPMuxDelete(mux) }
+      var chunk = WebPData()
+      guard WebPMuxGetChunk(mux, "ICCP", &chunk) == WEBP_MUX_OK,
+            let chunkBytes = chunk.bytes,
+            chunk.size == expected.count else { return false }
+      return Data(bytes: chunkBytes, count: chunk.size) == expected
+    }
   }
 
   private func imageHasAlpha(_ image: CGImage) -> Bool {

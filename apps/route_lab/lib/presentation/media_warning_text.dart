@@ -41,8 +41,8 @@ String localizedMediaWarning(String warning) {
   if (warning == 'Metadata preservation after resize is best-effort') {
     return '图片缩放后的 metadata 保留是尽力而为，仍需独立检查 EXIF/ICC';
   }
-  if (warning == 'WebP metadata was not preserved by the libwebp route') {
-    return 'WebP 路线当前不保留 EXIF/ICC 等 metadata，像素方向已归一化';
+  if (warning.startsWith('WebP EXIF/XMP metadata was not preserved')) {
+    return 'WebP 未保留 EXIF/XMP；需要时已保留 ICC 色彩配置';
   }
   if (warning.startsWith('Image quality was adapted once')) {
     return '已根据首次结果估算一次补偿质量，避免反复完整编码';

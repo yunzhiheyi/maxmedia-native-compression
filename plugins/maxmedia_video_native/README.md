@@ -7,8 +7,8 @@ versioned request and result types from `media_route_contracts`.
 | Platform | Output | Audio | Source picker |
 | --- | --- | --- | --- |
 | Android | MP4, H.264 or HEVC | Keep or remove | Use an app-level file picker |
-| iOS | MP4 or MOV, H.264 or HEVC | Remove only | `pickVideoSource(s)` available |
-| macOS | MP4 or MOV, H.264 or HEVC | Remove only | Use an app-level file picker |
+| iOS | MP4 or MOV, H.264 or HEVC | Keep or remove | `pickVideoSource(s)` available |
+| macOS | MP4 or MOV, H.264 or HEVC | Keep or remove | Use an app-level file picker |
 
 Use `capabilities()` to inspect codecs and features on the current device.
 All platforms support `maxShortSide` to reduce display dimensions without
@@ -38,7 +38,7 @@ try {
     container: ContainerFormat.mp4,
     averageBitrate: 1000000,
     maxShortSide: 720,
-    removeAudio: true, // Required on iOS and macOS.
+    removeAudio: false,
   ));
   print('${result.outputBytes} bytes at ${result.outputPath}');
   for (final warning in result.warnings) {
@@ -74,4 +74,6 @@ HEVC alone does not guarantee HDR preservation.
 Apple output reports probed codec, dimensions, frame rate, and estimated data
 rate. Encoder settings and visual quality can vary by hardware and input; use
 independent probing and visual comparisons for production acceptance. The
-plugin does not support background resume or an Apple audio-preserving path.
+plugin does not support background resume. Apple outputs are checked for an
+audio track before success is reported when the source contains audio and
+`removeAudio` is false.

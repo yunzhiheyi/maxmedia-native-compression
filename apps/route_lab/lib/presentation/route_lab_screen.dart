@@ -81,61 +81,72 @@ class _RouteLabScreenState extends State<RouteLabScreen> {
             label: Text(selectedImageName ?? '选择图片'),
           ),
           const SizedBox(height: 12),
-          DropdownButtonFormField<ImageFormat>(
-            key: const ValueKey('image-output-format'),
-            initialValue: selectedImageFormat,
-            decoration: const InputDecoration(
-              labelText: '输出格式',
-              border: OutlineInputBorder(),
-            ),
-            items: [
-              for (final format in ImageFormat.values)
-                DropdownMenuItem(
-                  value: format,
-                  enabled: _supportsImageFormat(format),
-                  child: Text(_imageFormatLabel(format)),
+          ExpansionTile(
+            key: const ValueKey('image-advanced-options'),
+            title: const Text('图片高级选项'),
+            subtitle: const Text('格式、尺寸与路径'),
+            children: [
+              DropdownButtonFormField<ImageFormat>(
+                key: const ValueKey('image-output-format'),
+                initialValue: selectedImageFormat,
+                decoration: const InputDecoration(
+                  labelText: '输出格式',
+                  border: OutlineInputBorder(),
                 ),
-            ],
-            onChanged: widget.viewModel.isBusy ? null : _changeImageFormat,
-          ),
-          const SizedBox(height: 12),
-          DropdownButtonFormField<ImageResizePolicy>(
-            key: const ValueKey('image-resize-policy'),
-            initialValue: selectedImageResizePolicy,
-            decoration: const InputDecoration(
-              labelText: '图片尺寸策略',
-              border: OutlineInputBorder(),
-            ),
-            items: [
-              for (final policy in ImageResizePolicy.values)
-                DropdownMenuItem(
-                  value: policy,
-                  child: Text(_imageResizePolicyLabel(policy)),
+                items: [
+                  for (final format in ImageFormat.values)
+                    DropdownMenuItem(
+                      value: format,
+                      enabled: _supportsImageFormat(format),
+                      child: Text(_imageFormatLabel(format)),
+                    ),
+                ],
+                onChanged: widget.viewModel.isBusy ? null : _changeImageFormat,
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<ImageResizePolicy>(
+                key: const ValueKey('image-resize-policy'),
+                initialValue: selectedImageResizePolicy,
+                decoration: const InputDecoration(
+                  labelText: '图片尺寸策略',
+                  border: OutlineInputBorder(),
                 ),
+                items: [
+                  for (final policy in ImageResizePolicy.values)
+                    DropdownMenuItem(
+                      value: policy,
+                      child: Text(_imageResizePolicyLabel(policy)),
+                    ),
+                ],
+                onChanged: widget.viewModel.isBusy
+                    ? null
+                    : (policy) {
+                        if (policy == null) return;
+                        widget.viewModel.clearResult();
+                        setState(() => selectedImageResizePolicy = policy);
+                      },
+              ),
+              const SizedBox(height: 6),
+              Text(
+                _imageResizePolicyHint(selectedImageResizePolicy),
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 12),
+              _PathField(
+                controller: imageInput,
+                label: '图片输入绝对路径',
+                onChanged: (_) => setState(() {}),
+              ),
+              _PathField(
+                controller: imageOutput,
+                label: '图片输出绝对路径（${_imageFormatLabel(selectedImageFormat)}）',
+                onChanged: (_) => setState(() {}),
+              ),
+              Text(
+                'WebP 推荐质量 80，JPEG/HEIC 推荐质量 75；所有策略都保持宽高比且不放大。',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
             ],
-            onChanged: widget.viewModel.isBusy
-                ? null
-                : (policy) {
-                    if (policy == null) return;
-                    widget.viewModel.clearResult();
-                    setState(() => selectedImageResizePolicy = policy);
-                  },
-          ),
-          const SizedBox(height: 6),
-          Text(
-            _imageResizePolicyHint(selectedImageResizePolicy),
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-          const SizedBox(height: 12),
-          _PathField(
-            controller: imageInput,
-            label: '图片输入绝对路径',
-            onChanged: (_) => setState(() {}),
-          ),
-          _PathField(
-            controller: imageOutput,
-            label: '图片输出绝对路径（${_imageFormatLabel(selectedImageFormat)}）',
-            onChanged: (_) => setState(() {}),
           ),
           FilledButton(
             key: const ValueKey('compress-image'),
@@ -148,15 +159,8 @@ class _RouteLabScreenState extends State<RouteLabScreen> {
             child: Text(
               widget.viewModel.phase == RouteLabPhase.runningImage
                   ? '图片压缩中…'
-                  : selectedImageResizePolicy == ImageResizePolicy.original
-                  ? '执行原尺寸压缩'
-                  : '执行标准压缩',
+                  : '压缩图片',
             ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'WebP 推荐质量 80，JPEG/HEIC 推荐质量 75；所有策略都保持宽高比且不放大。',
-            style: Theme.of(context).textTheme.bodySmall,
           ),
           ..._resultSection(MediaResultKind.image),
           const Divider(height: 40),
@@ -178,87 +182,94 @@ class _RouteLabScreenState extends State<RouteLabScreen> {
             Text(summary, style: Theme.of(context).textTheme.bodySmall),
           ],
           const SizedBox(height: 12),
-          DropdownButtonFormField<VideoQualityPreset>(
-            key: const ValueKey('video-output-resolution'),
-            initialValue: selectedVideoPreset,
-            decoration: const InputDecoration(
-              labelText: '输出分辨率',
-              border: OutlineInputBorder(),
-            ),
-            items: [
-              for (final preset in VideoQualityPreset.values)
-                DropdownMenuItem(value: preset, child: Text(preset.label)),
-            ],
-            onChanged: widget.viewModel.isBusy ? null : _changeVideoPreset,
-          ),
-          const SizedBox(height: 6),
-          Text(
-            selectedVideoPreset.hint,
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-          const SizedBox(height: 12),
-          DropdownButtonFormField<VideoBitrateBudget>(
-            key: const ValueKey('video-bitrate-budget'),
-            initialValue: selectedVideoBitrateBudget,
-            decoration: const InputDecoration(
-              labelText: '目标码率',
-              border: OutlineInputBorder(),
-            ),
-            items: [
-              for (final budget in VideoBitrateBudget.values)
-                DropdownMenuItem(value: budget, child: Text(budget.label)),
-            ],
-            onChanged: widget.viewModel.isBusy
-                ? null
-                : (budget) {
-                    if (budget == null) return;
-                    widget.viewModel.clearResult();
-                    setState(() => selectedVideoBitrateBudget = budget);
-                  },
-          ),
-          const SizedBox(height: 6),
-          Text(
-            '当前请求 ${(selectedVideoBitrateBudget.apply(selectedVideoPreset) / 1000000).toStringAsFixed(2)} Mbps；更低码率通常能缩小文件，但会损失画面细节。',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-          const SizedBox(height: 12),
-          DropdownButtonFormField<VideoHdrPolicy>(
-            key: const ValueKey('video-hdr-policy'),
-            initialValue: selectedVideoHdrPolicy,
-            decoration: const InputDecoration(
-              labelText: 'HDR 输入策略',
-              border: OutlineInputBorder(),
-            ),
-            items: [
-              for (final policy in VideoHdrPolicy.values)
-                DropdownMenuItem(
-                  value: policy,
-                  child: Text(videoHdrPolicyLabel(policy)),
+          ExpansionTile(
+            key: const ValueKey('video-advanced-options'),
+            title: const Text('视频高级选项'),
+            subtitle: const Text('分辨率、码率、HDR 与路径'),
+            children: [
+              DropdownButtonFormField<VideoQualityPreset>(
+                key: const ValueKey('video-output-resolution'),
+                initialValue: selectedVideoPreset,
+                decoration: const InputDecoration(
+                  labelText: '输出分辨率',
+                  border: OutlineInputBorder(),
                 ),
+                items: [
+                  for (final preset in VideoQualityPreset.values)
+                    DropdownMenuItem(value: preset, child: Text(preset.label)),
+                ],
+                onChanged: widget.viewModel.isBusy ? null : _changeVideoPreset,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                selectedVideoPreset.hint,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<VideoBitrateBudget>(
+                key: const ValueKey('video-bitrate-budget'),
+                initialValue: selectedVideoBitrateBudget,
+                decoration: const InputDecoration(
+                  labelText: '目标码率',
+                  border: OutlineInputBorder(),
+                ),
+                items: [
+                  for (final budget in VideoBitrateBudget.values)
+                    DropdownMenuItem(value: budget, child: Text(budget.label)),
+                ],
+                onChanged: widget.viewModel.isBusy
+                    ? null
+                    : (budget) {
+                        if (budget == null) return;
+                        widget.viewModel.clearResult();
+                        setState(() => selectedVideoBitrateBudget = budget);
+                      },
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '当前请求 ${(selectedVideoBitrateBudget.apply(selectedVideoPreset) / 1000000).toStringAsFixed(2)} Mbps；更低码率通常能缩小文件，但会损失画面细节。',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<VideoHdrPolicy>(
+                key: const ValueKey('video-hdr-policy'),
+                initialValue: selectedVideoHdrPolicy,
+                decoration: const InputDecoration(
+                  labelText: 'HDR 输入策略',
+                  border: OutlineInputBorder(),
+                ),
+                items: [
+                  for (final policy in VideoHdrPolicy.values)
+                    DropdownMenuItem(
+                      value: policy,
+                      child: Text(videoHdrPolicyLabel(policy)),
+                    ),
+                ],
+                onChanged: widget.viewModel.isBusy
+                    ? null
+                    : (policy) {
+                        if (policy == null) return;
+                        widget.viewModel.clearResult();
+                        setState(() => selectedVideoHdrPolicy = policy);
+                      },
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'HDR 默认保留原片，不做可能变色的转码；如需转 SDR 或继续压缩，请显式选择。',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 12),
+              _PathField(
+                controller: videoInput,
+                label: '视频输入绝对路径',
+                onChanged: (_) => setState(() {}),
+              ),
+              _PathField(
+                controller: videoOutput,
+                label: '视频输出绝对路径（MP4）',
+                onChanged: (_) => setState(() {}),
+              ),
             ],
-            onChanged: widget.viewModel.isBusy
-                ? null
-                : (policy) {
-                    if (policy == null) return;
-                    widget.viewModel.clearResult();
-                    setState(() => selectedVideoHdrPolicy = policy);
-                  },
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'HDR 默认保留原片，不做可能变色的转码；如需转 SDR 或继续压缩，请显式选择。',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-          const SizedBox(height: 12),
-          _PathField(
-            controller: videoInput,
-            label: '视频输入绝对路径',
-            onChanged: (_) => setState(() {}),
-          ),
-          _PathField(
-            controller: videoOutput,
-            label: '视频输出绝对路径（MP4）',
-            onChanged: (_) => setState(() {}),
           ),
           Row(
             children: [
@@ -271,7 +282,7 @@ class _RouteLabScreenState extends State<RouteLabScreen> {
                   child: Text(
                     widget.viewModel.phase == RouteLabPhase.runningVideo
                         ? '压缩中 ${(100 * (widget.viewModel.progress ?? 0)).round()}%'
-                        : '执行 H.264 原生压缩',
+                        : '压缩视频',
                   ),
                 ),
               ),
@@ -415,7 +426,7 @@ class _RouteLabScreenState extends State<RouteLabScreen> {
         container: ContainerFormat.mp4,
         averageBitrate: selectedVideoBitrateBudget.apply(selectedVideoPreset),
         maxShortSide: selectedVideoPreset.maxShortSide,
-        removeAudio: true,
+        removeAudio: false,
         hdrPolicy: selectedVideoHdrPolicy,
       ),
     );

@@ -62,12 +62,14 @@ unless the optional target-ratio policy rejects an oversized result.
 The default `ImageColorPolicy.keepOriginal` checks the decoded output color
 space on Android 8+ and refuses an output that differs from the source. Older
 Android versions cannot perform this check and keep the original by default.
-Apple's WebP encoder writes sRGB pixels without the source ICC profile, so a
-source with a known non-sRGB profile is kept unchanged by default. ImageIO
-outputs with such a profile are checked after encoding; an unverified output
-is deleted. Callers may explicitly choose `allowConversion` if a color-space
-change is acceptable. This checks color-space identity, not pixel-for-pixel
-equality or perceptual quality after lossy encoding.
+For Apple WebP output, known non-sRGB RGB sources are rendered in their source
+color space and the source ICC profile is embedded in the WebP file. The
+written ICC is checked before success is reported. Inputs without a usable
+RGB profile are kept unchanged by default when color safety cannot be verified.
+ImageIO outputs with a non-sRGB profile are also checked after encoding; an
+unverified output is deleted. Callers may explicitly choose `allowConversion`
+if a color-space change is acceptable. Profile checks do not guarantee
+pixel-for-pixel equality or identical perceptual quality after lossy encoding.
 
 EXIF and other non-color metadata remain best effort: Android Bitmap and Apple
 WebP do not preserve the source EXIF metadata. An Android WebP encoder may

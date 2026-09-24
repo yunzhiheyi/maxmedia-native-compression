@@ -154,8 +154,7 @@ class _BatchSectionState extends State<BatchSection> {
             container: ContainerFormat.mp4,
             averageBitrate: _videoBitrateBudget.apply(_videoPreset),
             maxShortSide: _videoPreset.maxShortSide,
-            // The Apple V0 executor requires audio removal.
-            removeAudio: true,
+            removeAudio: false,
             hdrPolicy: _videoHdrPolicy,
           ),
       ];
@@ -182,47 +181,58 @@ class _BatchSectionState extends State<BatchSection> {
             _batchError!,
             style: TextStyle(color: Theme.of(context).colorScheme.error),
           ),
-        Row(
+        Align(
+          alignment: Alignment.centerRight,
+          child: FilledButton.tonal(
+            onPressed: _busy ? null : _pickAndCompressImages,
+            child: const Text('多选图片压缩'),
+          ),
+        ),
+        ExpansionTile(
+          key: const ValueKey('batch-image-advanced-options'),
+          title: const Text('批量图片高级选项'),
+          subtitle: Text(
+            '${_imageFormat.name.toUpperCase()} · $_maxConcurrent 张并发',
+          ),
           children: [
-            const Text('图片并发数'),
-            const SizedBox(width: 12),
-            DropdownButton<int>(
-              value: _maxConcurrent,
+            Row(
+              children: [
+                const Text('图片并发数'),
+                const SizedBox(width: 12),
+                DropdownButton<int>(
+                  value: _maxConcurrent,
+                  items: [
+                    for (final value in const [1, 2, 4, 6])
+                      DropdownMenuItem(value: value, child: Text('$value')),
+                  ],
+                  onChanged: _busy
+                      ? null
+                      : (value) => setState(() => _maxConcurrent = value ?? 4),
+                ),
+              ],
+            ),
+            DropdownButtonFormField<ImageFormat>(
+              initialValue: _imageFormat,
+              decoration: const InputDecoration(labelText: '批量图片格式'),
               items: [
-                for (final value in const [1, 2, 4, 6])
-                  DropdownMenuItem(value: value, child: Text('$value')),
+                for (final format in [
+                  ImageFormat.webp,
+                  ImageFormat.jpeg,
+                  ImageFormat.heic,
+                ])
+                  if (_supportedImageFormats.contains(format))
+                    DropdownMenuItem(
+                      value: format,
+                      child: Text(format.name.toUpperCase()),
+                    ),
               ],
               onChanged: _busy
                   ? null
-                  : (value) => setState(() => _maxConcurrent = value ?? 4),
-            ),
-            const Spacer(),
-            FilledButton.tonal(
-              onPressed: _busy ? null : _pickAndCompressImages,
-              child: const Text('多选图片压缩'),
+                  : (value) {
+                      if (value != null) setState(() => _imageFormat = value);
+                    },
             ),
           ],
-        ),
-        DropdownButtonFormField<ImageFormat>(
-          initialValue: _imageFormat,
-          decoration: const InputDecoration(labelText: '批量图片格式'),
-          items: [
-            for (final format in [
-              ImageFormat.webp,
-              ImageFormat.jpeg,
-              ImageFormat.heic,
-            ])
-              if (_supportedImageFormats.contains(format))
-                DropdownMenuItem(
-                  value: format,
-                  child: Text(format.name.toUpperCase()),
-                ),
-          ],
-          onChanged: _busy
-              ? null
-              : (value) {
-                  if (value != null) setState(() => _imageFormat = value);
-                },
         ),
         if (_imageController.currentState != null) ...[
           if (_imageAcquisitionMs.isNotEmpty &&
@@ -252,61 +262,72 @@ class _BatchSectionState extends State<BatchSection> {
             ),
         ],
         const Divider(height: 24),
-        DropdownButtonFormField<VideoQualityPreset>(
-          initialValue: _videoPreset,
-          decoration: const InputDecoration(labelText: '批量视频分辨率'),
-          items: [
-            for (final preset in VideoQualityPreset.values)
-              DropdownMenuItem(value: preset, child: Text(preset.label)),
-          ],
-          onChanged: _busy
-              ? null
-              : (value) {
-                  if (value != null) setState(() => _videoPreset = value);
-                },
-        ),
-        DropdownButtonFormField<VideoBitrateBudget>(
-          initialValue: _videoBitrateBudget,
-          decoration: const InputDecoration(labelText: '批量视频目标码率'),
-          items: [
-            for (final budget in VideoBitrateBudget.values)
-              DropdownMenuItem(value: budget, child: Text(budget.label)),
-          ],
-          onChanged: _busy
-              ? null
-              : (value) {
-                  if (value != null) {
-                    setState(() => _videoBitrateBudget = value);
-                  }
-                },
-        ),
-        Text(
-          '当前请求 ${(_videoBitrateBudget.apply(_videoPreset) / 1000000).toStringAsFixed(2)} Mbps；降低码率会损失画面细节。',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-        if (!Platform.isAndroid) ...[
-          DropdownButtonFormField<VideoHdrPolicy>(
-            key: const ValueKey('batch-video-hdr-policy'),
-            initialValue: _videoHdrPolicy,
-            decoration: const InputDecoration(labelText: '批量视频 HDR 处理'),
-            items: [
-              for (final policy in VideoHdrPolicy.values)
-                DropdownMenuItem(
-                  value: policy,
-                  child: Text(videoHdrPolicyLabel(policy)),
-                ),
+        ExpansionTile(
+          key: const ValueKey('batch-video-advanced-options'),
+          title: const Text('批量视频高级选项'),
+          subtitle: Text(
+            '${_videoPreset.label} · ${_videoBitrateBudget.label} · 保留声音',
+          ),
+          children: [
+            DropdownButtonFormField<VideoQualityPreset>(
+              initialValue: _videoPreset,
+              decoration: const InputDecoration(labelText: '批量视频分辨率'),
+              items: [
+                for (final preset in VideoQualityPreset.values)
+                  DropdownMenuItem(value: preset, child: Text(preset.label)),
+              ],
+              onChanged: _busy
+                  ? null
+                  : (value) {
+                      if (value != null) setState(() => _videoPreset = value);
+                    },
+            ),
+            DropdownButtonFormField<VideoBitrateBudget>(
+              initialValue: _videoBitrateBudget,
+              decoration: const InputDecoration(labelText: '批量视频目标码率'),
+              items: [
+                for (final budget in VideoBitrateBudget.values)
+                  DropdownMenuItem(value: budget, child: Text(budget.label)),
+              ],
+              onChanged: _busy
+                  ? null
+                  : (value) {
+                      if (value != null) {
+                        setState(() => _videoBitrateBudget = value);
+                      }
+                    },
+            ),
+            Text(
+              '当前请求 ${(_videoBitrateBudget.apply(_videoPreset) / 1000000).toStringAsFixed(2)} Mbps；降低码率会损失画面细节。',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            if (!Platform.isAndroid) ...[
+              DropdownButtonFormField<VideoHdrPolicy>(
+                key: const ValueKey('batch-video-hdr-policy'),
+                initialValue: _videoHdrPolicy,
+                decoration: const InputDecoration(labelText: '批量视频 HDR 处理'),
+                items: [
+                  for (final policy in VideoHdrPolicy.values)
+                    DropdownMenuItem(
+                      value: policy,
+                      child: Text(videoHdrPolicyLabel(policy)),
+                    ),
+                ],
+                onChanged: _busy
+                    ? null
+                    : (value) {
+                        if (value != null) {
+                          setState(() => _videoHdrPolicy = value);
+                        }
+                      },
+              ),
+              Text(
+                'HDR 默认跳过压缩并保留原片，避免未经验证的色彩变化。',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
             ],
-            onChanged: _busy
-                ? null
-                : (value) {
-                    if (value != null) setState(() => _videoHdrPolicy = value);
-                  },
-          ),
-          Text(
-            'HDR 源可显式转为 SDR；默认兼容模式只提示色彩风险。',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-        ],
+          ],
+        ),
         Row(
           children: [
             const Expanded(child: Text('视频按队列逐条编码（可取消当前/全部）')),

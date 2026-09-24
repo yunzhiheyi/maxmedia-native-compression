@@ -65,13 +65,12 @@ public class MaxmediaVideoNativePlugin: NSObject, FlutterPlugin, FlutterStreamHa
       "executor": "apple-avassetreader-writer-v0",
       "platform": "macos",
       "features": [
-        "average-bitrate", "gop", "cancel", "progress", "video-only",
+        "average-bitrate", "gop", "cancel", "progress", "audio-optional",
         "downscale-short-side"
       ],
       "codecs": ["h264", "hevc"],
       "formats": ["mp4", "mov"],
       "warnings": [
-        "V0 requires removeAudio=true",
         "V0 downscales via maxShortSide only; explicit width/height and frame rate changes are rejected",
         "HDR sources are kept unchanged by default because color-preserving transcoding is not validated"
       ]
@@ -94,9 +93,7 @@ public class MaxmediaVideoNativePlugin: NSObject, FlutterPlugin, FlutterStreamHa
       || hdrPolicy == "rejectH264" else {
       throw PluginError.invalidRequest
     }
-    guard arguments["removeAudio"] as? Bool == true else {
-      throw PluginError.unsupported("V0 requires removeAudio=true")
-    }
+    let removeAudio = arguments["removeAudio"] as? Bool ?? false
     emitProgress(0, stage: "probing")
 
     let inputURL = URL(fileURLWithPath: inputPath)
@@ -113,6 +110,8 @@ public class MaxmediaVideoNativePlugin: NSObject, FlutterPlugin, FlutterStreamHa
     guard let videoTrack = asset.tracks(withMediaType: .video).first else {
       throw PluginError.noVideoTrack
     }
+    let sourceAudioTrack = asset.tracks(withMediaType: .audio).first
+    let audioTrack = removeAudio ? nil : sourceAudioTrack
     let sourceIsHDR = isHDRTrack(videoTrack)
     if sourceIsHDR && hdrPolicy == "keepOriginal" {
       throw PluginError.hdrProtected
@@ -127,9 +126,9 @@ public class MaxmediaVideoNativePlugin: NSObject, FlutterPlugin, FlutterStreamHa
       || targetGeometry.encodedHeight != sourceGeometry.encodedHeight
     let inputDurationMilliseconds = Int(max(0, CMTimeGetSeconds(asset.duration)) * 1000)
     let sourceBitrate = max(0, Int(videoTrack.estimatedDataRate.rounded()))
-    let passthrough = !scaling
+    let passthrough = removeAudio && !scaling
       && trackCodecName(videoTrack) == codecName
-      && !asset.tracks(withMediaType: .audio).isEmpty
+      && sourceAudioTrack != nil
       && sourceBitrate > 0
       && sourceBitrate <= averageBitrate
       && !(sourceIsHDR && codecName == "h264" && hdrPolicy != "allowWithWarning")
@@ -202,6 +201,14 @@ public class MaxmediaVideoNativePlugin: NSObject, FlutterPlugin, FlutterStreamHa
     readerOutput.alwaysCopiesSampleData = false
     guard reader.canAdd(readerOutput) else { throw PluginError.readerConfiguration }
     reader.add(readerOutput)
+    var audioReaderOutput: AVAssetReaderTrackOutput?
+    if let audioTrack {
+      let output = AVAssetReaderTrackOutput(track: audioTrack, outputSettings: nil)
+      output.alwaysCopiesSampleData = false
+      guard reader.canAdd(output) else { throw PluginError.readerConfiguration }
+      reader.add(output)
+      audioReaderOutput = output
+    }
 
     let fileType: AVFileType = containerName == "mov" ? .mov : .mp4
     let writer = try AVAssetWriter(outputURL: outputURL, fileType: fileType)
@@ -259,6 +266,22 @@ public class MaxmediaVideoNativePlugin: NSObject, FlutterPlugin, FlutterStreamHa
     writerInput.transform = videoTrack.preferredTransform
     guard writer.canAdd(writerInput) else { throw PluginError.writerConfiguration }
     writer.add(writerInput)
+    var audioWriterInput: AVAssetWriterInput?
+    if let audioTrack {
+      guard let formatHint = audioTrack.formatDescriptions.first else {
+        throw PluginError.unsupported("Cannot read the source audio format")
+      }
+      let input = AVAssetWriterInput(
+        mediaType: .audio, outputSettings: nil,
+        sourceFormatHint: (formatHint as! CMFormatDescription)
+      )
+      input.expectsMediaDataInRealTime = false
+      guard writer.canAdd(input) else {
+        throw PluginError.unsupported("Source audio cannot be copied into this container")
+      }
+      writer.add(input)
+      audioWriterInput = input
+    }
 
     stateLock.lock()
     currentReader = reader
@@ -288,7 +311,9 @@ public class MaxmediaVideoNativePlugin: NSObject, FlutterPlugin, FlutterStreamHa
         started: started,
         sourceIsHDR: sourceIsHDR,
         hdrPolicy: hdrPolicy,
-        toneMapToSdr: toneMapToSdr
+        toneMapToSdr: toneMapToSdr,
+        sourceHasAudio: sourceAudioTrack != nil,
+        audioRemoved: removeAudio
       )
     }
     emitProgress(0, stage: "encoding")
@@ -300,34 +325,59 @@ public class MaxmediaVideoNativePlugin: NSObject, FlutterPlugin, FlutterStreamHa
     }
     writer.startSession(atSourceTime: .zero)
 
-    while reader.status == .reading {
+    var videoFinished = false
+    var audioFinished = audioReaderOutput == nil
+    while reader.status == .reading && (!videoFinished || !audioFinished) {
       if isCancelled() { return cancelledResult() }
-      if writerInput.isReadyForMoreMediaData {
-        guard let sample = readerOutput.copyNextSampleBuffer() else { break }
-        if !writerInput.append(sample) {
-          reader.cancelReading()
-          writer.cancelWriting()
-          clearCurrent()
-          throw PluginError.appendFailed(writer.error)
-        }
-        let presentationSeconds = CMTimeGetSeconds(
-          CMSampleBufferGetPresentationTimeStamp(sample)
-        )
-        let now = DispatchTime.now().uptimeNanoseconds
-        if durationSeconds.isFinite, durationSeconds > 0, presentationSeconds.isFinite {
-          let fraction = min(0.98, max(0, presentationSeconds / durationSeconds))
-          if fraction - lastProgressFraction >= 0.02 || now - lastProgressAt >= 100_000_000 {
-            emitProgress(fraction, stage: "encoding")
-            lastProgressFraction = fraction
-            lastProgressAt = now
+      var processedSample = false
+      if !videoFinished && writerInput.isReadyForMoreMediaData {
+        if let sample = readerOutput.copyNextSampleBuffer() {
+          if !writerInput.append(sample) {
+            reader.cancelReading()
+            writer.cancelWriting()
+            clearCurrent()
+            throw PluginError.appendFailed(writer.error)
           }
+          processedSample = true
+          let presentationSeconds = CMTimeGetSeconds(
+            CMSampleBufferGetPresentationTimeStamp(sample)
+          )
+          let now = DispatchTime.now().uptimeNanoseconds
+          if durationSeconds.isFinite, durationSeconds > 0, presentationSeconds.isFinite {
+            let fraction = min(0.98, max(0, presentationSeconds / durationSeconds))
+            if fraction - lastProgressFraction >= 0.02 || now - lastProgressAt >= 100_000_000 {
+              emitProgress(fraction, stage: "encoding")
+              lastProgressFraction = fraction
+              lastProgressAt = now
+            }
+          }
+        } else {
+          videoFinished = true
+          writerInput.markAsFinished()
         }
-      } else {
+      }
+      if !audioFinished, let audioReaderOutput, let audioWriterInput,
+         audioWriterInput.isReadyForMoreMediaData {
+        if let sample = audioReaderOutput.copyNextSampleBuffer() {
+          if !audioWriterInput.append(sample) {
+            reader.cancelReading()
+            writer.cancelWriting()
+            clearCurrent()
+            throw PluginError.appendFailed(writer.error)
+          }
+          processedSample = true
+        } else {
+          audioFinished = true
+          audioWriterInput.markAsFinished()
+        }
+      }
+      if !processedSample && (!videoFinished || !audioFinished) {
         Thread.sleep(forTimeInterval: 0.001)
       }
     }
     if isCancelled() { return cancelledResult() }
-    writerInput.markAsFinished()
+    if !videoFinished { writerInput.markAsFinished() }
+    if !audioFinished { audioWriterInput?.markAsFinished() }
     if reader.status == .failed {
       writer.cancelWriting()
       clearCurrent()
@@ -342,11 +392,15 @@ public class MaxmediaVideoNativePlugin: NSObject, FlutterPlugin, FlutterStreamHa
     guard writer.status == .completed else {
       throw PluginError.writeFailed(writer.error)
     }
-
+    if audioTrack != nil && AVURLAsset(url: outputURL).tracks(withMediaType: .audio).isEmpty {
+      try? FileManager.default.removeItem(at: outputURL)
+      throw PluginError.audioNotPreserved
+    }
     if fileSize(outputPath) >= fileSize(inputPath) {
       try? FileManager.default.removeItem(at: outputURL)
       throw PluginError.noSizeReduction
     }
+
     if isCancelled() { return cancelledResult() }
 
     emitProgress(1, stage: "finalizing")
@@ -364,7 +418,9 @@ public class MaxmediaVideoNativePlugin: NSObject, FlutterPlugin, FlutterStreamHa
       started: started,
       sourceIsHDR: sourceIsHDR,
       hdrPolicy: hdrPolicy,
-      toneMapToSdr: toneMapToSdr
+      toneMapToSdr: toneMapToSdr,
+      sourceHasAudio: sourceAudioTrack != nil,
+      audioRemoved: removeAudio
     )
     outputAccepted = true
     return success
@@ -383,7 +439,9 @@ public class MaxmediaVideoNativePlugin: NSObject, FlutterPlugin, FlutterStreamHa
     started: DispatchTime,
     sourceIsHDR: Bool,
     hdrPolicy: String,
-    toneMapToSdr: Bool
+    toneMapToSdr: Bool,
+    sourceHasAudio: Bool,
+    audioRemoved: Bool
   ) -> [String: Any] {
     let inputBytes = (try? FileManager.default.attributesOfItem(atPath: inputPath)[.size] as? NSNumber) ?? nil
     let outputBytes = (try? FileManager.default.attributesOfItem(atPath: outputPath)[.size] as? NSNumber) ?? nil
@@ -394,7 +452,8 @@ public class MaxmediaVideoNativePlugin: NSObject, FlutterPlugin, FlutterStreamHa
       "averageBitrateApplied": appliedBitrate,
       "widthRequested": width,
       "heightRequested": height,
-      "audioRemoved": true,
+      "audioRemoved": sourceHasAudio && audioRemoved,
+      "audioPreserved": sourceHasAudio && !audioRemoved,
       "sourceHdrDetected": sourceIsHDR,
       "hdrPolicyRequested": hdrPolicy,
       "hdrHandling": toneMapToSdr ? "tone-map-to-sdr" : "none",
@@ -737,10 +796,12 @@ private enum PluginError: LocalizedError {
   case readFailed(Error?)
   case writeFailed(Error?)
   case noSizeReduction
+  case audioNotPreserved
   case unsupported(String)
 
   var code: String {
     if case .hdrProtected = self { return "HDR_COLOR_PRESERVATION" }
+    if case .audioNotPreserved = self { return "AUDIO_PRESERVATION_FAILED" }
     return "VIDEO_COMPRESSION_FAILED"
   }
 
@@ -756,6 +817,7 @@ private enum PluginError: LocalizedError {
     case .readFailed(let error): return "Video read failed: \(error?.localizedDescription ?? "unknown")"
     case .writeFailed(let error): return "Video write failed: \(error?.localizedDescription ?? "unknown")"
     case .noSizeReduction: return "Compression produced no size reduction; the larger output was removed"
+    case .audioNotPreserved: return "The compressed video lost its audio track; the output was removed"
     case .unsupported(let detail): return detail
     }
   }

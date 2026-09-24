@@ -1,3 +1,8 @@
+## Unreleased
+
+- Preserve a known non-sRGB RGB source ICC profile in Apple WebP output and
+  verify the written profile, allowing wide-gamut photos to compress safely.
+
 ## 0.1.0
 
 - Initial Android, iOS, and macOS native image compression support.
