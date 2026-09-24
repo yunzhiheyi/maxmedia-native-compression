@@ -1,0 +1,14 @@
+name: media_route_contracts
+description: Versioned image and video compression requests, capabilities, and results shared by MaxMedia Flutter plugins.
+version: 0.1.0
+homepage: https://maxmax.cc
+topics:
+  - media
+  - compression
+
+environment:
+  sdk: ^3.10.8
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.0

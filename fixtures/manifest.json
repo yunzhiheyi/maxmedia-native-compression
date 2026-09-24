@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "samples": [
+    {
+      "sampleId": "synthetic-testsrc-png-320x180-v1",
+      "path": "../apps/route_lab/integration_test/assets/input.png",
+      "source": "FFmpeg lavfi testsrc generated for this project",
+      "license": "project-generated test fixture",
+      "sha256": "fe2ceeab3ef2988d77dfb291f671dd428e631d09318d5314c2c458e7db3bb4e8",
+      "kind": "image",
+      "codec": "png",
+      "width": 320,
+      "height": 180,
+      "pixelFormat": "rgb24",
+      "role": "native integration smoke only"
+    },
+    {
+      "sampleId": "synthetic-testsrc2-h264-320x180-30-v1",
+      "path": "../apps/route_lab/integration_test/assets/input.mp4",
+      "source": "FFmpeg lavfi testsrc2 generated for this project",
+      "license": "project-generated test fixture",
+      "sha256": "404c4acc677ed56700f9547ee3c3a8da12eba35e7342c2e6a415c274fae08279",
+      "kind": "video",
+      "container": "mp4",
+      "codec": "h264",
+      "width": 320,
+      "height": 180,
+      "frameRate": "30/1",
+      "durationSeconds": 1,
+      "pixelFormat": "yuv420p",
+      "audioTracks": 0,
+      "role": "native integration smoke only"
+    },
+    {
+      "sampleId": "synthetic-grayscale-jpeg-120x80-v1",
+      "path": "../apps/route_lab/integration_test/assets/image-gray.jpg",
+      "source": "Project-generated grayscale image",
+      "license": "project-generated test fixture",
+      "sha256": "b778a4cb2d730fc58dffadae0422a7ed5670c849b04113046ce7c502cad7e53f",
+      "kind": "image",
+      "codec": "jpeg",
+      "width": 120,
+      "height": 80,
+      "role": "native grayscale-to-WebP regression"
+    },
+    {
+      "sampleId": "synthetic-oriented-jpeg-120x80-v1",
+      "path": "../apps/route_lab/integration_test/assets/image-oriented.jpg",
+      "source": "Project-generated image with EXIF orientation 6",
+      "license": "project-generated test fixture",
+      "sha256": "008a6f2948acd2ba5818b5b31f0bd4f0edcd0d5421fc0cf71b2d057e2e893531",
+      "kind": "image",
+      "codec": "jpeg",
+      "width": 120,
+      "height": 80,
+      "role": "native orientation and bounded-size regression"
+    },
+    {
+      "sampleId": "synthetic-h264-640x360-30-12s-cancel-v1",
+      "path": "../apps/route_lab/integration_test/assets/video-cancel.mp4",
+      "source": "Project-generated synthetic video",
+      "license": "project-generated test fixture",
+      "sha256": "380a1d1e62261856614530daac97cbbf45623f57cb48163f68931af23506a9b4",
+      "kind": "video",
+      "container": "mp4",
+      "codec": "h264",
+      "width": 640,
+      "height": 360,
+      "frameRate": "30/1",
+      "durationSeconds": 12,
+      "pixelFormat": "yuv420p",
+      "audioTracks": 0,
+      "role": "native cancellation and BUSY regression"
+    }
+  ]
+}

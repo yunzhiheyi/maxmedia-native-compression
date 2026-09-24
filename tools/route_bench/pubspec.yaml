@@ -1,0 +1,16 @@
+name: route_bench
+description: Reproducible FFmpeg baseline runner for MaxMedia image and video route validation.
+version: 0.1.0
+publish_to: none
+# repository: https://github.com/my_org/my_repo
+
+environment:
+  sdk: ^3.10.8
+
+# Add regular dependencies here.
+dependencies:
+  media_route_contracts:
+    path: ../../packages/media_route_contracts
+
+dev_dependencies:
+  lints: ^6.0.0
