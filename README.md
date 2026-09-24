@@ -2,6 +2,12 @@
 
 这是视频压缩与图片压缩技术路线的可运行验证工程，不是产品功能全集。
 
+已发布到 pub.dev：
+[media_route_contracts 0.1.0](https://pub.dev/packages/media_route_contracts)、
+[maxmedia_image_native 0.1.0](https://pub.dev/packages/maxmedia_image_native)、
+[maxmedia_video_native 0.1.0](https://pub.dev/packages/maxmedia_video_native)。
+发布边界与尚未完成的 iPhone 真机保色验收见[发布记录](docs/PUB_RELEASE.md)。
+
 ## 目录
 
 ```text

@@ -4,11 +4,21 @@ Publish the three packages, not `apps/route_lab` or `tools/route_bench`.
 Version 0.1.0 describes a limited initial plugin API; it is not a promise of
 production coverage for every format, device, or HDR source.
 
+## Published (2026-09-24)
+
+Version 0.1.0 was published before the outstanding iPhone physical-device color
+regression could run. It is live for
+[`media_route_contracts`](https://pub.dev/packages/media_route_contracts),
+[`maxmedia_image_native`](https://pub.dev/packages/maxmedia_image_native), and
+[`maxmedia_video_native`](https://pub.dev/packages/maxmedia_video_native).
+The limitation below remains open; publishing does not count as iPhone sign-off.
+
 ## Current gate (2026-09-24)
 
-The three dry runs report zero warnings. The contract package is clean; each
-plugin reports one local `pubspec_overrides.yaml` hint, which must disappear
-when it resolves the published contract before upload. Dart analysis, unit
+The final publication dry runs reported zero warnings. Both plugins resolved
+the published contract with their local `pubspec_overrides.yaml` removed;
+restoring the overrides for development causes one local hint per plugin in
+later dry runs. Dart analysis, unit
 tests, API documentation generation, 14 Android real-device integration tests,
 30 macOS native integration tests, and 30 iOS simulator integration tests pass.
 The new default color guards have been exercised with a tagged HLG/Main10 video
