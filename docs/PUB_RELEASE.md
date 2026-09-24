@@ -47,10 +47,10 @@ dependencies because it is an unpublished application.
   copyright notice. Confirm rights to release all plugin source.
 - Review the Apple `libwebp` dependency and the resulting app's third-party
   notices. The plugin's BSD license does not replace dependency licenses.
-- Publish a public source repository if available, then add its real URL to
-  each package's `repository:` field. The current `homepage:` points to the
-  live MaxMedia website; a repository link is recommended for issue reports
-  and source review but is not required by pub's validator.
+- The public source repository is
+  `https://github.com/yunzhiheyi/maxmedia-native-compression`; each package's
+  `repository:` field points to it. The `homepage:` points to the live MaxMedia
+  website.
 - Recheck all three package names on pub.dev immediately before upload. They
   were not found through the pub.dev package API during this review, but names
   can be claimed at any time.

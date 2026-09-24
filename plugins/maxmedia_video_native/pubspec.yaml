@@ -2,6 +2,7 @@ name: maxmedia_video_native
 description: Native H.264 and HEVC video compression for Flutter using Media3 on Android and AVFoundation on Apple platforms.
 version: 0.1.0
 homepage: https://maxmax.cc
+repository: https://github.com/yunzhiheyi/maxmedia-native-compression
 topics:
   - video
   - compression
