@@ -1,4 +1,4 @@
-## Unreleased
+## 0.1.1
 
 - Preserve a known non-sRGB RGB source ICC profile in Apple WebP output and
   verify the written profile, allowing wide-gamut photos to compress safely.

@@ -1,4 +1,4 @@
-## Unreleased
+## 0.1.1
 
 - Keep source audio by default on iOS and macOS, and verify the output audio
   track before accepting a compressed file.

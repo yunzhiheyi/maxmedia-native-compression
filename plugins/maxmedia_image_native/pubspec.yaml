@@ -1,6 +1,6 @@
 name: maxmedia_image_native
 description: Native JPEG, PNG, WebP, and supported HEIC image compression for Flutter on Android, iOS, and macOS.
-version: 0.1.0
+version: 0.1.1
 homepage: https://maxmax.cc
 repository: https://github.com/yunzhiheyi/maxmedia-native-compression
 topics:
